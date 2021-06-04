@@ -14,49 +14,64 @@ export class AuthService {
   private baseUrl: string = environment.apiBaseUrl;
   private _user!: User;
 
-  constructor( private httpClient: HttpClient ) { }
+  constructor(private httpClient: HttpClient) { }
 
   get user() {
     return { ...this._user };
   }
 
-  login( email: string, password: string ) {
-    const url  = `${ this.baseUrl }/auth`;
+  register(name: string, email: string, password: string) {
+    const url = `${this.baseUrl}/auth/register`;
+    const body = { name, email, password };
+    return this.httpClient.post<AuthResponse>(url, body)
+      .pipe(
+        tap(resp => {
+          if (resp.ok) {
+            localStorage.setItem('token', resp.token!);
+          }
+        }),
+        map(response => response.ok),
+        catchError(err => of(err.error.msg))
+      );
+  }
+
+  login(email: string, password: string) {
+    const url = `${this.baseUrl}/auth`;
     const body = { email, password };
-    return this.httpClient.post<AuthResponse>( url, body )
-        .pipe(
-          tap( resp => {
-            this.saveData( resp );
-          }),
-          map( response => response .ok ),
-          catchError( err => of(err.error.msg) )
-        );
+    return this.httpClient.post<AuthResponse>(url, body)
+      .pipe(
+        tap(resp => {
+          if (resp.ok) {
+            localStorage.setItem('token', resp.token!);
+          }
+        }),
+        map(response => response.ok),
+        catchError(err => of(err.error.msg!))
+      );
   }
 
   validateToken(): Observable<boolean> {
-    const url = `${ this.baseUrl }/auth/renew`;
+    const url = `${this.baseUrl}/auth/renew`;
     const headers = new HttpHeaders()
-        .set('x-token', localStorage.getItem('token') || '');
+      .set('x-token', localStorage.getItem('token') || '');
     return this.httpClient.get<AuthResponse>( url, { headers } )
-        .pipe(
-          tap( resp => {
-            this.saveData( resp );
-          }),
-          map( response => {
-            return response.ok;
-          }),
-          catchError( err => of(false) )
-        );
+      .pipe(
+        map( resp => {
+          localStorage.setItem('token', resp.token!);
+          this._user = {
+            name: resp.name!,
+            uid: resp.uid!,
+            email: resp.email!
+          };
+          return resp.ok;
+        }),
+        catchError(err => of(false))
+      );
   }
 
-  private saveData( resp: AuthResponse ) {
-    localStorage.setItem('token', resp.token! );
-    if( resp.ok ) {
-      this._user = {
-        name: resp.name!,
-        uid: resp.uid!
-      };
-    }
+  logout() {
+    // localStorage.removeItem('token');
+    localStorage.clear();
   }
 
 }
